@@ -14,6 +14,13 @@ interface InteractiveTransitMapProps {
   onSelectCamera: (cameraId: string) => void;
   onSelectGantry?: (gantry: ERPGantry) => void;
   showBypass?: boolean;
+  customRouteCoords?: [number, number][];
+  customOriginCoord?: [number, number];
+  customDestCoord?: [number, number];
+  customOriginLabel?: string;
+  customDestLabel?: string;
+  customDistanceKm?: number;
+  customDelayMins?: number;
 }
 
 export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
@@ -21,7 +28,14 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
   activeLayers,
   onToggleLayer,
   onSelectCamera,
-  showBypass = false
+  showBypass = false,
+  customRouteCoords,
+  customOriginCoord,
+  customDestCoord,
+  customOriginLabel,
+  customDestLabel,
+  customDistanceKm,
+  customDelayMins
 }) => {
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -61,7 +75,15 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
     return `M ${start[0]},${start[1]} ` + rest.map(([x, y]) => `L ${x},${y}`).join(' ');
   };
 
-  const activePathString = buildSvgPath(preset.mapRouteCoords);
+  const effectiveRouteCoords = customRouteCoords && customRouteCoords.length > 0 ? customRouteCoords : preset.mapRouteCoords;
+  const effectiveOriginCoord = customOriginCoord || preset.originCoord;
+  const effectiveDestCoord = customDestCoord || preset.destCoord;
+  const effectiveOriginLabel = customOriginLabel || 'Woodlands Ave 2';
+  const effectiveDestLabel = customDestLabel || 'Marina Bay (MBFC)';
+  const effectiveDistance = customDistanceKm !== undefined ? customDistanceKm : preset.distanceKm;
+  const effectiveDelay = customDelayMins !== undefined ? customDelayMins : preset.delayMins;
+
+  const activePathString = buildSvgPath(effectiveRouteCoords);
   const bypassPathString = buildSvgPath(preset.alternativeBypass.bypassCoords);
 
   return (
@@ -409,8 +431,8 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
             </>
           )}
 
-          {/* Origin Waypoint Pin (Green circle with text box: Woodlands Ave 2) */}
-          <g transform={`translate(${preset.originCoord[0]}, ${preset.originCoord[1]})`}>
+          {/* Origin Waypoint Pin */}
+          <g transform={`translate(${effectiveOriginCoord[0]}, ${effectiveOriginCoord[1]})`}>
             {/* Concentric rings */}
             <circle r="9" fill="#10b981" fillOpacity="0.2" className="animate-ping" />
             <circle r="7" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
@@ -419,7 +441,7 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
               <rect
                 x="0"
                 y="0"
-                width="100"
+                width={Math.max(90, effectiveOriginLabel.length * 6.5)}
                 height="20"
                 rx="4"
                 fill="#ffffff"
@@ -428,13 +450,13 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
                 filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
               />
               <text x="8" y="14" className="fill-[#0f172a] text-[10px] font-semibold">
-                Woodlands Ave 2
+                {effectiveOriginLabel}
               </text>
             </g>
           </g>
 
-          {/* Destination Target Pin (Red pin with text box: Marina Bay MBFC) */}
-          <g transform={`translate(${preset.destCoord[0]}, ${preset.destCoord[1]})`}>
+          {/* Destination Target Pin */}
+          <g transform={`translate(${effectiveDestCoord[0]}, ${effectiveDestCoord[1]})`}>
             <circle r="10" fill="#ef4444" fillOpacity="0.2" className="animate-ping" />
             <circle r="7" fill="#ef4444" stroke="#ffffff" strokeWidth="2.5" />
             {/* Label callout */}
@@ -442,7 +464,7 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
               <rect
                 x="0"
                 y="0"
-                width="104"
+                width={Math.max(90, effectiveDestLabel.length * 6.5)}
                 height="20"
                 rx="4"
                 fill="#ffffff"
@@ -451,7 +473,7 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
                 filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
               />
               <text x="8" y="14" className="fill-[#0f172a] text-[10px] font-semibold">
-                Marina Bay (MBFC)
+                {effectiveDestLabel}
               </text>
             </g>
           </g>
@@ -490,13 +512,13 @@ export const InteractiveTransitMap: React.FC<InteractiveTransitMapProps> = ({
           <div className="text-[10px] font-bold tracking-wider text-[#93c5fd] uppercase">
             Active Telemetry
           </div>
-          <div className="font-semibold text-white mt-0.5 text-xs">
-            Tracking {preset.distanceKm}km Sector
+          <div className="font-semibold text-white mt-0.5 text-xs font-mono">
+            Tracking {effectiveDistance}km Sector
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-[#cbd5e1] mt-0.5 font-mono">
             <span>Avg: 51.4 km/h</span>
             <span className="text-[#94a3b8]">·</span>
-            <span className="text-[#fca5a5]">Lat: +{preset.delayMins}m</span>
+            <span className="text-[#fca5a5]">Lat: +{effectiveDelay}m</span>
           </div>
         </div>
       </div>

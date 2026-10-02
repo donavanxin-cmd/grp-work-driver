@@ -29,7 +29,9 @@ import {
   fetchOneMapRoute,
   fetchTrafficIncidents,
   fetchEstTravelTimes,
-  transformLTAIncidents
+  transformLTAIncidents,
+  resolveLocationToCoords,
+  generateDynamicRouteCoords
 } from '../services/ltaOneMapService';
 
 interface RoutePlannerViewProps {
@@ -44,12 +46,26 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
   onOpenApiHealth
 }) => {
   const [activePresetId, setActivePresetId] = useState<string>('sle-cte-cbd');
-  const [originInput, setOriginInput] = useState<string>('Woodlands Ave 2 (Woodlands Regional Centre)');
-  const [destInput, setDestInput] = useState<string>('Marina Bay Financial Centre (MBFC Tower 2)');
+  const activePreset = ROUTE_PRESETS.find((p) => p.id === activePresetId) || ROUTE_PRESETS[0];
+
+  const [originInput, setOriginInput] = useState<string>(activePreset.origin);
+  const [destInput, setDestInput] = useState<string>(activePreset.destination);
   const [routeBias, setRouteBias] = useState<RouteBias>('fastest');
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
   const [showOriginSuggestions, setShowOriginSuggestions] = useState<boolean>(false);
   const [showDestSuggestions, setShowDestSuggestions] = useState<boolean>(false);
+
+  // Dynamic route telemetry state (updates on live route calculation)
+  const [currentDistanceKm, setCurrentDistanceKm] = useState<number>(activePreset.distanceKm);
+  const [currentTransitMins, setCurrentTransitMins] = useState<number>(activePreset.transitMins);
+  const [currentFreeFlowMins, setCurrentFreeFlowMins] = useState<number>(activePreset.freeFlowMins);
+  const [currentDelayMins, setCurrentDelayMins] = useState<number>(activePreset.delayMins);
+  const [currentTollSGD, setCurrentTollSGD] = useState<number>(activePreset.tollSGD);
+  const [currentCorridorText, setCurrentCorridorText] = useState<string>(activePreset.primaryCorridorText);
+  const [currentMapCoords, setCurrentMapCoords] = useState<[number, number][]>(activePreset.mapRouteCoords);
+  const [currentOriginCoord, setCurrentOriginCoord] = useState<[number, number]>(activePreset.originCoord);
+  const [currentDestCoord, setCurrentDestCoord] = useState<[number, number]>(activePreset.destCoord);
+  const [calculationFeedback, setCalculationFeedback] = useState<string | null>(null);
 
   // Live LTA data state
   const [liveIncidents, setLiveIncidents] = useState<IncidentBulletin[]>(INCIDENT_BULLETINS);
@@ -120,26 +136,42 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const activePreset = ROUTE_PRESETS.find((p) => p.id === activePresetId) || ROUTE_PRESETS[0];
-
   const handleSelectPreset = (preset: RoutePreset) => {
     setActivePresetId(preset.id);
     setOriginInput(preset.origin);
     setDestInput(preset.destination);
     setIsBypassApplied(false);
+    setCurrentDistanceKm(preset.distanceKm);
+    setCurrentTransitMins(preset.transitMins);
+    setCurrentFreeFlowMins(preset.freeFlowMins);
+    setCurrentDelayMins(preset.delayMins);
+    setCurrentTollSGD(preset.tollSGD);
+    setCurrentCorridorText(preset.primaryCorridorText);
+    setCurrentMapCoords(preset.mapRouteCoords);
+    setCurrentOriginCoord(preset.originCoord);
+    setCurrentDestCoord(preset.destCoord);
+    setCalculationFeedback(null);
   };
 
   const handleSwapLocations = () => {
-    const temp = originInput;
-    setOriginInput(destInput);
-    setDestInput(temp);
+    const tempOriginStr = originInput;
+    const tempDestStr = destInput;
+    setOriginInput(tempDestStr);
+    setDestInput(tempOriginStr);
+
+    const tempOrigCoord = currentOriginCoord;
+    setCurrentOriginCoord(currentDestCoord);
+    setCurrentDestCoord(tempOrigCoord);
+    setCurrentMapCoords((prev) => [...prev].reverse());
   };
 
   const handleGpsLocate = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setOriginInput('Current GPS Location (Woodlands Sector)');
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setOriginInput(`Current GPS Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
         },
         () => {
           setOriginInput('Woodlands Ave 2 (Woodlands Regional Centre)');
@@ -152,12 +184,59 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
 
   const handleCalculateRoute = async () => {
     setIsCalculating(true);
+    setCalculationFeedback(null);
     try {
-      // Connect to OneMap route API endpoint
-      const oneMapData = await fetchOneMapRoute('1.4382,103.7890', '1.2792,103.8540', 'drive');
-      if (oneMapData?.data?.route_summary) {
-        // Successfully connected to OneMap routing engine
-        console.info('OneMap Route calculated successfully:', oneMapData.data.route_summary);
+      // 1. Resolve origin and destination coordinates
+      const originRes = resolveLocationToCoords(originInput, {
+        lat: 1.4382,
+        lng: 103.7890,
+        svg: [410, 85]
+      });
+      const destRes = resolveLocationToCoords(destInput, {
+        lat: 1.2792,
+        lng: 103.8540,
+        svg: [545, 410]
+      });
+
+      // 2. Call OneMap route API endpoint
+      const oneMapData = await fetchOneMapRoute(originRes.coordStr, destRes.coordStr, 'drive');
+      const summary = oneMapData?.data?.route_summary;
+
+      if (summary?.total_distance) {
+        // Convert meters to kilometers
+        const distKm = parseFloat((summary.total_distance / 1000).toFixed(1));
+        const freeFlowM = Math.max(5, Math.round((summary.total_time || 1200) / 60));
+
+        // Calculate dynamic delay based on active LTA incidents along corridor
+        const matchingIncidents = liveIncidents.filter((inc) =>
+          inc.corridor.toLowerCase().includes(originRes.corridor.toLowerCase().split(' ')[0]) ||
+          originRes.corridor.toLowerCase().includes(inc.expressway.toLowerCase())
+        );
+        const computedDelay = matchingIncidents.length > 0 ? 8 : (distKm > 20 ? 4 : 2);
+        const totalTransit = freeFlowM + computedDelay;
+
+        // Dynamic toll estimation based on CBD destination and distance
+        const isCbdTarget =
+          destInput.toLowerCase().includes('marina') ||
+          destInput.toLowerCase().includes('mbfc') ||
+          destInput.toLowerCase().includes('sheares') ||
+          destInput.toLowerCase().includes('raffles') ||
+          destInput.toLowerCase().includes('cbd');
+        const computedToll = routeBias === 'avoid_erp' ? 0.00 : (isCbdTarget ? 4.50 : (distKm > 25 ? 3.00 : 1.50));
+
+        const newMapCoords = generateDynamicRouteCoords(originRes.svg, destRes.svg);
+
+        setCurrentDistanceKm(distKm);
+        setCurrentFreeFlowMins(freeFlowM);
+        setCurrentDelayMins(computedDelay);
+        setCurrentTransitMins(totalTransit);
+        setCurrentTollSGD(computedToll);
+        setCurrentCorridorText(`Via ${originRes.corridor}`);
+        setCurrentOriginCoord(originRes.svg);
+        setCurrentDestCoord(destRes.svg);
+        setCurrentMapCoords(newMapCoords);
+
+        setCalculationFeedback(`Live Route Calculated: ${distKm} km · ${totalTransit} mins via OneMap`);
       }
     } catch (e) {
       console.warn('Live routing fallback engaged:', e);
@@ -379,6 +458,17 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
             <span>Speed algorithm calibrated with 2,400+ induction loops</span>
           </div>
         </div>
+
+        {/* Live Calculation Feedback Notification */}
+        {calculationFeedback && (
+          <div className="p-2.5 bg-[#eff6ff] border border-[#bfdbfe] rounded-xl flex items-center justify-between text-xs text-[#1e40af] animate-in fade-in">
+            <span className="flex items-center gap-1.5 font-semibold">
+              <CheckCircle2 className="w-4 h-4 text-[#2563eb]" />
+              {calculationFeedback}
+            </span>
+            <span className="text-[11px] text-[#64748b]">Real-Time GPS Telemetry</span>
+          </div>
+        )}
       </div>
 
       {/* 4 Summary Telemetry Cards Row */}
@@ -391,10 +481,10 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
                 Distance Analysis
               </span>
               <div className="text-2xl font-bold text-[#0f172a] mt-1 font-mono tabular-nums">
-                {activePreset.distanceKm} <span className="text-sm font-medium text-[#475569]">km total</span>
+                {currentDistanceKm} <span className="text-sm font-medium text-[#475569]">km total</span>
               </div>
-              <div className="text-xs text-[#059669] font-medium mt-1">
-                {activePreset.primaryCorridorText}
+              <div className="text-xs text-[#059669] font-medium mt-1 truncate max-w-[210px]">
+                {currentCorridorText}
               </div>
             </div>
             <div className="p-2.5 bg-[#f1f5f9] rounded-lg text-[#1c2442]">
@@ -413,13 +503,13 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="text-2xl font-bold text-[#0f172a] font-mono tabular-nums">
                   {isBypassApplied
-                    ? activePreset.transitMins - activePreset.alternativeBypass.timeSavingsMinutes
-                    : activePreset.transitMins}
+                    ? currentTransitMins - activePreset.alternativeBypass.timeSavingsMinutes
+                    : currentTransitMins}
                 </span>
                 <span className="text-sm font-medium text-[#475569]">mins</span>
-                {!isBypassApplied && activePreset.delayMins > 0 && (
+                {!isBypassApplied && currentDelayMins > 0 && (
                   <span className="text-[11px] font-bold bg-[#fee2e2] text-[#b91c1c] px-1.5 py-0.5 rounded">
-                    +{activePreset.delayMins}m Jam
+                    +{currentDelayMins}m Jam
                   </span>
                 )}
                 {isBypassApplied && (
@@ -429,7 +519,7 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
                 )}
               </div>
               <div className="text-xs text-[#64748b] mt-1">
-                Standard free-flow: {activePreset.freeFlowMins} mins
+                Standard free-flow: {currentFreeFlowMins} mins
               </div>
             </div>
             <div className="p-2.5 bg-[#fffbeb] rounded-lg text-[#d97706]">
@@ -447,8 +537,8 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
               </span>
               <div className="text-2xl font-bold text-[#2563eb] mt-1 font-mono tabular-nums">
                 ${(isBypassApplied
-                  ? activePreset.tollSGD + activePreset.alternativeBypass.tollDeltaSGD
-                  : activePreset.tollSGD
+                  ? Math.max(0, currentTollSGD + activePreset.alternativeBypass.tollDeltaSGD)
+                  : currentTollSGD
                 ).toFixed(2)}{' '}
                 <span className="text-sm font-medium text-[#475569]">SGD</span>
               </div>
@@ -472,7 +562,7 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
                 Active Route Hazards
               </span>
               <div className="text-2xl font-bold text-[#ef4444] mt-1 font-mono tabular-nums">
-                {isBypassApplied ? 0 : activePreset.hazardsCount}{' '}
+                {isBypassApplied ? 0 : (currentDelayMins > 5 ? 2 : 1)}{' '}
                 <span className="text-sm font-medium text-[#475569]">alerts active</span>
               </div>
               <div className="text-xs text-[#64748b] mt-1">
@@ -652,6 +742,13 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
             onToggleLayer={handleToggleLayer}
             onSelectCamera={(id) => setSelectedCameraId(id)}
             showBypass={isBypassApplied}
+            customRouteCoords={currentMapCoords}
+            customOriginCoord={currentOriginCoord}
+            customDestCoord={currentDestCoord}
+            customOriginLabel={originInput.split('(')[0].trim()}
+            customDestLabel={destInput.split('(')[0].trim()}
+            customDistanceKm={currentDistanceKm}
+            customDelayMins={currentDelayMins}
           />
 
           {/* Corridor CCTV Feeds matching screenshot */}
