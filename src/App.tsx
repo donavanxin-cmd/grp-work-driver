@@ -26,7 +26,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8f9ff] text-[#0b1c30] font-sans antialiased selection:bg-[#2563eb] selection:text-white">
-      {/* 1. Official Singapore Government Agency Top Banner */}
+      {/* 1. Independent Transit Companion Top Banner */}
       <TopGovBanner />
 
       {/* 2. Main Navigation Bar */}
@@ -59,7 +59,7 @@ export default function App() {
         {activeTab === 'erp' && <ERPCamerasView />}
       </main>
 
-      {/* 4. Singapore Government & LTA Dark Civil Footer */}
+      {/* 4. Footer & Open Data Disclaimer */}
       <GovFooter onNavClick={(tab) => {
         setActiveTab(tab);
         window.scrollTo({ top: 0, behavior: 'smooth' });

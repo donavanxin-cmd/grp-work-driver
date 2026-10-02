@@ -282,9 +282,9 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-[#d97706] uppercase">
-            <span>Civil Intelligent Transport System</span>
+            <span>Independent Transit Intelligence</span>
             <span className="text-[#cbd5e1]">|</span>
-            <span className="text-[#64748b] font-medium">EMAS v4.8</span>
+            <span className="text-[#64748b] font-medium">EMAS Open Telemetry</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0f172a] tracking-tight mt-1">
             Expressway Journey Planner & Live Alerts
