@@ -86,7 +86,7 @@ export default async function handler(req, res) {
     }
   };
 
-  const result = await fetchOneMap(start, end, routeType, fallbackOneMapRoute);
+  const result = await fetchOneMap(req, start, end, routeType, fallbackOneMapRoute);
 
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;

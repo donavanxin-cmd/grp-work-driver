@@ -16,6 +16,7 @@ function apiDevPlugin() {
         const rawPath = req.url.split('?')[0].replace(/^\/api\//, '').replace(/\.js$/, '');
         const validEndpoints = [
           'health',
+          'keys',
           'traffic-incidents',
           'travel-times',
           'flood-alerts',

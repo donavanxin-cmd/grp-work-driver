@@ -48,6 +48,7 @@ export default function App() {
           <RoutePlannerView
             onSelectIncident={handleSelectIncident}
             searchFilter={searchQuery}
+            onOpenApiHealth={() => setShowApiHealth(true)}
           />
         )}
         {activeTab === 'map' && <LiveTrafficMapView />}

@@ -26,7 +26,7 @@ const FALLBACK_FLOOD_ALERTS = {
 export default async function handler(req, res) {
   if (handleCors(req, res)) return;
 
-  const result = await fetchLTA('PubFloodAlerts', FALLBACK_FLOOD_ALERTS);
+  const result = await fetchLTA(req, 'PubFloodAlerts', FALLBACK_FLOOD_ALERTS);
   
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;

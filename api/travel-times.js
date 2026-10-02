@@ -57,7 +57,7 @@ const FALLBACK_EST_TRAVEL_TIMES = {
 export default async function handler(req, res) {
   if (handleCors(req, res)) return;
 
-  const result = await fetchLTA('EstTravelTimes', FALLBACK_EST_TRAVEL_TIMES);
+  const result = await fetchLTA(req, 'EstTravelTimes', FALLBACK_EST_TRAVEL_TIMES);
   
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;

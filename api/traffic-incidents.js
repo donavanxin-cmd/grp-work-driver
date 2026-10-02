@@ -39,7 +39,7 @@ const FALLBACK_TRAFFIC_INCIDENTS = {
 export default async function handler(req, res) {
   if (handleCors(req, res)) return;
 
-  const result = await fetchLTA('TrafficIncidents', FALLBACK_TRAFFIC_INCIDENTS);
+  const result = await fetchLTA(req, 'TrafficIncidents', FALLBACK_TRAFFIC_INCIDENTS);
   
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;

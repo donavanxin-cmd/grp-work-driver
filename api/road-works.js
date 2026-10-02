@@ -41,7 +41,7 @@ const FALLBACK_ROAD_WORKS = {
 export default async function handler(req, res) {
   if (handleCors(req, res)) return;
 
-  const result = await fetchLTA('RoadWorks', FALLBACK_ROAD_WORKS);
+  const result = await fetchLTA(req, 'RoadWorks', FALLBACK_ROAD_WORKS);
   
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;

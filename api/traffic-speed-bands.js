@@ -70,7 +70,7 @@ const FALLBACK_SPEED_BANDS = {
 export default async function handler(req, res) {
   if (handleCors(req, res)) return;
 
-  const result = await fetchLTA('TrafficSpeedBands', FALLBACK_SPEED_BANDS);
+  const result = await fetchLTA(req, 'TrafficSpeedBands', FALLBACK_SPEED_BANDS);
   
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;

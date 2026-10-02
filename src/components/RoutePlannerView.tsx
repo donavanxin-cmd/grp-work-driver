@@ -21,20 +21,27 @@ import {
   INCIDENT_BULLETINS,
   POPULAR_LOCATIONS
 } from '../data/singaporeTransitData';
-import { RoutePreset, RouteBias } from '../types/transit';
+import { RoutePreset, RouteBias, IncidentBulletin } from '../types/transit';
 import { InteractiveTransitMap } from './InteractiveTransitMap';
 import { CCTVModal } from './CCTVModal';
 import { BypassSimulationModal } from './BypassSimulationModal';
-import { fetchOneMapRoute } from '../services/ltaOneMapService';
+import {
+  fetchOneMapRoute,
+  fetchTrafficIncidents,
+  fetchEstTravelTimes,
+  transformLTAIncidents
+} from '../services/ltaOneMapService';
 
 interface RoutePlannerViewProps {
   onSelectIncident?: (id: string) => void;
   searchFilter?: string;
+  onOpenApiHealth?: () => void;
 }
 
 export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
   onSelectIncident,
-  searchFilter = ''
+  searchFilter = '',
+  onOpenApiHealth
 }) => {
   const [activePresetId, setActivePresetId] = useState<string>('sle-cte-cbd');
   const [originInput, setOriginInput] = useState<string>('Woodlands Ave 2 (Woodlands Regional Centre)');
@@ -43,6 +50,12 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
   const [showOriginSuggestions, setShowOriginSuggestions] = useState<boolean>(false);
   const [showDestSuggestions, setShowDestSuggestions] = useState<boolean>(false);
+
+  // Live LTA data state
+  const [liveIncidents, setLiveIncidents] = useState<IncidentBulletin[]>(INCIDENT_BULLETINS);
+  const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false);
+  const [liveStreamSource, setLiveStreamSource] = useState<string>('Simulation Mode');
+  const [liveTravelTimes, setLiveTravelTimes] = useState<any[]>([]);
 
   // Map layer controls
   const [activeLayers, setActiveLayers] = useState({
@@ -62,6 +75,39 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
 
   // Live timer for CCTV feeds
   const [currentTimeSec, setCurrentTimeSec] = useState<string>('09:25:38');
+
+  // Load live LTA data on mount and interval
+  const loadLiveData = async () => {
+    try {
+      // 1. Fetch live incidents
+      const incidentRes = await fetchTrafficIncidents();
+      if (incidentRes?.live && Array.isArray(incidentRes?.data?.value) && incidentRes.data.value.length > 0) {
+        setIsLiveConnected(true);
+        setLiveStreamSource(`LTA DataMall (${incidentRes.data.value.length} real-time alerts)`);
+        const transformed = transformLTAIncidents(incidentRes.data.value);
+        if (transformed.length > 0) {
+          setLiveIncidents(transformed);
+        }
+      } else if (incidentRes?.status === 'mock_fallback') {
+        setIsLiveConnected(false);
+        setLiveStreamSource('Simulation Fallback (Add LTA_ACCOUNT_KEY for live data)');
+      }
+
+      // 2. Fetch live travel times
+      const travelRes = await fetchEstTravelTimes();
+      if (travelRes?.data?.value && Array.isArray(travelRes.data.value)) {
+        setLiveTravelTimes(travelRes.data.value);
+      }
+    } catch (err) {
+      console.warn('Error loading live LTA telemetry:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveData();
+    const interval = setInterval(loadLiveData, 30000); // 30s auto-refresh
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -127,7 +173,7 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
   };
 
   // Filtered bulletins based on category and optional global search
-  const filteredBulletins = INCIDENT_BULLETINS.filter((b) => {
+  const filteredBulletins = liveIncidents.filter((b) => {
     const matchesCategory = b.category === bulletinFilter;
     if (!matchesCategory) return false;
     if (searchFilter) {
@@ -692,7 +738,25 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
             <h2 className="text-xl sm:text-2xl font-bold text-[#0f172a] tracking-tight mt-1">
               Active Islandwide Traffic Bulletins & Road Works
             </h2>
-            <p className="text-xs sm:text-sm text-[#475569] mt-0.5">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5 ${
+                isLiveConnected
+                  ? 'bg-[#ecfdf5] text-[#047857] border border-[#a7f3d0]'
+                  : 'bg-[#fffbeb] text-[#b45309] border border-[#fde68a]'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${isLiveConnected ? 'bg-[#10b981] animate-ping' : 'bg-[#f59e0b]'}`}></span>
+                <span>{liveStreamSource}</span>
+              </span>
+              {onOpenApiHealth && (
+                <button
+                  onClick={onOpenApiHealth}
+                  className="text-[11px] text-[#2563eb] hover:underline font-semibold cursor-pointer"
+                >
+                  {isLiveConnected ? 'Check API Health →' : 'Connect LTA Key →'}
+                </button>
+              )}
+            </div>
+            <p className="text-xs sm:text-sm text-[#475569] mt-1">
               Real-time EMAS updates, planned expressway maintenance, and statutory road diversions across Singapore.
             </p>
           </div>
@@ -707,7 +771,7 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
                   : 'text-[#475569] hover:text-[#0f172a]'
               }`}
             >
-              Live Incidents (9)
+              Live Incidents ({liveIncidents.filter((i) => i.category === 'incidents').length})
             </button>
             <button
               onClick={() => setBulletinFilter('closures')}
