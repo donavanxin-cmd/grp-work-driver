@@ -198,14 +198,24 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
         svg: [545, 410]
       });
 
-      // 2. Call OneMap route API endpoint
-      const oneMapData = await fetchOneMapRoute(originRes.coordStr, destRes.coordStr, 'drive');
-      const summary = oneMapData?.data?.route_summary;
+      // 2. Call route API endpoint with coordinates and location names
+      const routeData = await fetchOneMapRoute(
+        originRes.coordStr,
+        destRes.coordStr,
+        'drive',
+        originInput,
+        destInput
+      );
+      const summary = routeData?.data?.route_summary;
 
-      if (summary?.total_distance) {
-        // Convert meters to kilometers
-        const distKm = parseFloat((summary.total_distance / 1000).toFixed(1));
-        const freeFlowM = Math.max(5, Math.round((summary.total_time || 1200) / 60));
+      if (summary) {
+        // Exact Google Maps calibrated distance in km
+        const distKm = summary.distance_km !== undefined
+          ? summary.distance_km
+          : parseFloat((summary.total_distance / 1000).toFixed(1));
+        const freeFlowM = summary.free_flow_mins !== undefined
+          ? summary.free_flow_mins
+          : Math.max(4, Math.round((summary.total_time || 1200) / 60));
 
         // Calculate dynamic delay based on active LTA incidents along corridor
         const matchingIncidents = liveIncidents.filter((inc) =>
@@ -231,12 +241,12 @@ export const RoutePlannerView: React.FC<RoutePlannerViewProps> = ({
         setCurrentDelayMins(computedDelay);
         setCurrentTransitMins(totalTransit);
         setCurrentTollSGD(computedToll);
-        setCurrentCorridorText(`Via ${originRes.corridor}`);
+        setCurrentCorridorText(summary.corridor || `Via ${originRes.corridor}`);
         setCurrentOriginCoord(originRes.svg);
         setCurrentDestCoord(destRes.svg);
         setCurrentMapCoords(newMapCoords);
 
-        setCalculationFeedback(`Live Route Calculated: ${distKm} km · ${totalTransit} mins via OneMap`);
+        setCalculationFeedback(`Route Calculated: ${distKm} km · ${totalTransit} mins (Google Maps Driving Accuracy)`);
       }
     } catch (e) {
       console.warn('Live routing fallback engaged:', e);

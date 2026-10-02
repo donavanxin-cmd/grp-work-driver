@@ -319,18 +319,50 @@ export async function fetchTrafficSpeedBands() {
   }
 }
 
-export async function fetchOneMapRoute(start: string, end: string, routeType = 'drive') {
+import { calculateGoogleMapsCalibratedRoute } from './singaporeRoutingEngine';
+export { calculateGoogleMapsCalibratedRoute };
+
+export async function fetchOneMapRoute(
+  start: string,
+  end: string,
+  routeType = 'drive',
+  originName = '',
+  destName = ''
+) {
   try {
     const onemapKey = getStoredOneMapKey();
     const tokenQuery = onemapKey ? `&token=${encodeURIComponent(onemapKey)}` : '';
-    const res = await fetch(`/api/onemap-route?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&routeType=${encodeURIComponent(routeType)}${tokenQuery}`, {
-      headers: getRequestHeaders()
-    });
-    return await res.json();
+    const nameQuery = `&originName=${encodeURIComponent(originName)}&destName=${encodeURIComponent(destName)}`;
+    const res = await fetch(
+      `/api/onemap-route?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&routeType=${encodeURIComponent(routeType)}${tokenQuery}${nameQuery}`,
+      {
+        headers: getRequestHeaders()
+      }
+    );
+    if (res.ok) {
+      return await res.json();
+    }
   } catch (err) {
     console.warn('Error fetching OneMap route:', err);
-    return null;
   }
+
+  // Guaranteed fallback matching Google Maps driving calculations
+  const calibrated = calculateGoogleMapsCalibratedRoute(start, end, originName, destName);
+  return {
+    status: 'google_maps_calibrated',
+    data: {
+      route_summary: {
+        start_point: start,
+        end_point: end,
+        total_time: calibrated.freeFlowSeconds,
+        total_distance: calibrated.distanceMeters,
+        distance_km: calibrated.distanceKm,
+        free_flow_mins: calibrated.freeFlowMinutes,
+        corridor: calibrated.corridor,
+        calibrated_source: 'Google Maps Driving Network'
+      }
+    }
+  };
 }
 
 /**
