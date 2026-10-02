@@ -1,0 +1,6 @@
+{
+  "name": "Civic Transit Intelligence",
+  "description": "Expressway Journey Planner & Live Alerts - Real-time transit telemetry cross-referenced with LTA CCTV feeds, ERP gantries, and expressway incident sensors.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
