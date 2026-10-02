@@ -10,6 +10,7 @@ interface NavbarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onSelectIncident?: (incidentId: string) => void;
+  onOpenApiHealth?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,7 +18,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTabChange,
   searchQuery,
   onSearchChange,
-  onSelectIncident
+  onSelectIncident,
+  onOpenApiHealth
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -37,8 +39,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-16 gap-3">
           {/* Left section: Network Status Pill & Nav Tabs */}
           <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar py-2">
-            {/* Live Network Status Pill */}
-            <div className="flex items-center bg-[#f8fafc] border border-[#e2e8f0] rounded-full px-2.5 py-1 text-xs shrink-0 select-none">
+            {/* Live Network Status Pill with API Health trigger */}
+            <div
+              onClick={onOpenApiHealth}
+              className="flex items-center bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#e2e8f0] rounded-full px-2.5 py-1 text-xs shrink-0 select-none cursor-pointer transition-colors"
+              title="Click to view API Health & LTA/OneMap Endpoint Diagnostics"
+            >
               <span className="flex items-center gap-1.5 font-medium text-[#1e293b]">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>

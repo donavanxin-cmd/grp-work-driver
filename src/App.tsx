@@ -12,10 +12,12 @@ import { IncidentsAlertsView } from './components/IncidentsAlertsView';
 import { RoadClosuresView } from './components/RoadClosuresView';
 import { ERPCamerasView } from './components/ERPCamerasView';
 import { GovFooter } from './components/GovFooter';
+import { ApiHealthModal } from './components/ApiHealthModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<NavTab>('planner');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showApiHealth, setShowApiHealth] = useState<boolean>(false);
 
   const handleSelectIncident = (incidentId: string) => {
     setActiveTab('incidents');
@@ -37,6 +39,7 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onSelectIncident={handleSelectIncident}
+        onOpenApiHealth={() => setShowApiHealth(true)}
       />
 
       {/* 3. Main Screen Viewport based on selected Tab */}
@@ -60,6 +63,12 @@ export default function App() {
         setActiveTab(tab);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }} />
+
+      {/* 5. API Health & LTA / OneMap Diagnostics Modal */}
+      <ApiHealthModal
+        isOpen={showApiHealth}
+        onClose={() => setShowApiHealth(false)}
+      />
     </div>
   );
 }

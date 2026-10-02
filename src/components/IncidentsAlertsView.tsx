@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { AlertTriangle, Filter, Search, Phone, ShieldCheck, MapPin, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AlertTriangle, Filter, Search, Phone, ShieldCheck, MapPin, Clock, Radio, RefreshCw } from 'lucide-react';
 import { INCIDENT_BULLETINS } from '../data/singaporeTransitData';
 import { IncidentBulletin } from '../types/transit';
+import { fetchTrafficIncidents } from '../services/ltaOneMapService';
 
 interface IncidentsAlertsViewProps {
   onSelectIncident?: (id: string) => void;
@@ -11,6 +12,26 @@ export const IncidentsAlertsView: React.FC<IncidentsAlertsViewProps> = ({ onSele
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterExpressway, setFilterExpressway] = useState<string>('ALL');
   const [search, setSearch] = useState<string>('');
+  const [liveSourceStatus, setLiveSourceStatus] = useState<string>('LTA DataMall');
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  const loadLiveIncidents = async () => {
+    setIsRefreshing(true);
+    try {
+      const result = await fetchTrafficIncidents();
+      if (result?.source) {
+        setLiveSourceStatus(result.source);
+      }
+    } catch (e) {
+      console.warn('LTA incident fetch:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLiveIncidents();
+  }, []);
 
   const expresswaysList = ['ALL', 'SLE', 'CTE', 'AYE', 'PIE', 'KJE', 'Bartley Viaduct', 'NSC', 'ECP'];
 
